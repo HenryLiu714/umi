@@ -1,0 +1,22 @@
+{
+  "name": "apiclient",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HenryLiu714/APIClient.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/HenryLiu714/APIClient/issues"
+  },
+  "homepage": "https://github.com/HenryLiu714/APIClient#readme"
+}
