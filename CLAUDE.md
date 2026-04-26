@@ -1,3 +1,115 @@
+# Personal Tracker — Media Module
+
+## Project Overview
+
+Personal tracker app/website. Long-term vision includes to-do list, end-of-day reflection quiz, daily digest with newsletter/recommendation feed, and weekly/monthly/yearly summaries. **Starting scope: the media tracking module only.**
+
+The media module passively pulls media consumption data (music, films) and produces a generated end-of-day summary delivered via email.
+
+## Stack
+
+- **Backend:** Hono + TypeScript
+- **Database:** Postgres
+- **Hosting:** Home Ubuntu server (Docker)
+- **Frontend (later):** React PWA, served from same server
+- **Cron:** systemd timer or node-cron for scheduled polling
+- **HTML parsing:** Cheerio (for Letterboxd scraping)
+
+## Architecture
+
+### Data Sources
+
+- **Last.fm** — primary music source. Use `user.getRecentTracks` with `from` timestamp. Last.fm is already the aggregator since Spotify scrobbles into it. **Prerequisite: scrobbling must be set up and consistent before this project produces useful data.**
+- **Letterboxd** — no official API. **Scrape `letterboxd.com/{username}/films/by/rated-date/`** rather than RSS or diary. Rationale: default flow is rating films on the films page, not adding diary entries; RSS misses entries. Rated-date sort surfaces new ratings as they happen.
+- **Spotify (optional, later)** — enrichment only: audio features, genres, high-res artwork. Not needed for play history.
+- **Apple Music** — skip. API is painful and Last.fm covers it.
+- **TMDB (optional, later)** — film metadata enrichment (runtime, director, genre) by title+year or via Letterboxd film page scrape.
+
+### Letterboxd Scraping Notes
+
+- **URL:** `letterboxd.com/{username}/films/by/rated-date/`
+- **Structure:** poster grid, not a table. Each entry is `li.poster-container` containing `div.film-poster` (with `data-film-slug`, `data-film-id`) and `p.poster-viewingdata` (rating CSS class, liked indicator).
+- **Title/year** not on listing page directly — pull from poster `alt` text or fetch film page.
+- **What rated-date captures:** films I rated today. Conflates "watched + rated today" with "watched earlier, rated today." Acceptable for daily digest, but column is named `rated_date` (not `watched_date`) to keep this honest.
+- **No rewatches:** films page deduplicates — one row per film, current rating only. Re-rating updates rated-date in place.
+- **No per-watch reviews:** reviews live on the film page (one per film). Fetch lazily if needed.
+- **Polling pattern:** fetch first page of rated-date view, walk top-down, stop when hitting a `(slug, rated_date)` already in DB. New/changed entries are everything above the stop point.
+- **Etiquette:** real `User-Agent` identifying the project, one fetch per cron run, cache aggressively.
+- **Open question / habit check:** if I ever mark films watched *without* rating, those won't appear in this view. If that happens regularly, add `films/by/date/` as a secondary source and merge.
+
+### Polling
+
+Single daily cron at ~11:30pm local time:
+1. Fetch Last.fm scrobbles since start-of-day (`user.getRecentTracks` with `from`)
+2. Scrape Letterboxd rated-date page; upsert new/changed entries
+3. Store raw responses in Postgres
+4. Generate daily digest
+5. Email digest
+
+### Schema (sketch)
+
+```sql
+scrobbles (
+  id,
+  played_at,
+  artist,
+  album,
+  track,
+  source,           -- 'lastfm' for now; allows adding spotify/etc later
+  raw jsonb
+)
+
+films (
+  id,
+  letterboxd_slug,  -- e.g. "parasite-2019" — natural key
+  rated_date,       -- when I rated it, per Letterboxd
+  title,
+  year,
+  rating,           -- 0.5 to 5.0, nullable
+  liked,            -- boolean, heart icon
+  letterboxd_url,
+  tmdb_id,          -- nullable, enrichment
+  raw jsonb,
+  UNIQUE (letterboxd_slug)
+)
+
+daily_digest (
+  date,
+  summary_text,
+  stats jsonb,
+  generated_at
+)
+```
+
+- `UNIQUE (letterboxd_slug)` since films page has one entry per film. To detect re-rating events ("bumped *The Holdovers* from 4 to 4.5 today"), capture previous `rating`/`rated_date` at upsert time. Add a small `film_rating_changes` audit table only if it becomes useful for year-end views.
+- `raw jsonb` on scrobbles and films preserves full source data — critical for re-deriving stats later when adding new summary metrics without re-fetching/re-scraping history.
+- `daily_digest` caches generated output for instant re-render and to avoid redundant LLM calls.
+
+### Summary Generation — Two Layers
+
+1. **Aggregation layer (SQL):** top artists, total listening minutes, films rated, average rating, re-rating events, etc. Build this first end-to-end.
+2. **Narrative layer (LLM):** turns aggregation into prose. Pattern recognition is where this gets fun — "third evening of Beach House in a row," "first 5-star film in two months." Add after aggregation works.
+
+### Delivery
+
+**Email** for v1. Lowest friction, works everywhere, ~20 lines of nodemailer. Web view can be added later reading from the same `daily_digest` rows. Push notifications require PWA/native and are out of scope for v1.
+
+## Out of Scope (For Now)
+
+- To-do list (consider integrating with existing app rather than building one)
+- End-of-day subjective quiz
+- Newsletter/Substack digest and recommendations
+- Weekly/monthly/yearly aggregation views (data model supports them; UI comes later)
+- Mobile app / sticky notifications
+
+## Design Principles
+
+- **Passive collection first.** No manual input required for v1.
+- **Store raw, derive later.** Never throw away source data.
+- **Fixed-time generation > on-demand.** Matches the "end of day reflection" framing and simplifies caching.
+- **Email > web > push** for v1 delivery.
+- **Year-end view is the actual product.** Daily digest is the data collection mechanism. Design the long-horizon stories ("Spotify Wrapped, but real") with this in mind from the start.
+
 # Server Boilerplate — Hono Backend
 
 This is a TypeScript boilerplate for a Hono HTTP server with Prisma ORM. It is designed to be cloned and extended for new projects. Follow the patterns below consistently across the codebase.

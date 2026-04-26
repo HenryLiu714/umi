@@ -18,5 +18,8 @@
   "bugs": {
     "url": "https://github.com/HenryLiu714/APIClient/issues"
   },
-  "homepage": "https://github.com/HenryLiu714/APIClient#readme"
+  "homepage": "https://github.com/HenryLiu714/APIClient#readme",
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
 }
