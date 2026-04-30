@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(uuid()) @db.Uuid
+  email       String       @unique
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz()
+  scrobbles   Scrobble[]
+  spotifyAuth SpotifyAuth?
+
+  @@map("users")
+}
+
+model SpotifyAuth {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  accessToken  String   @map("access_token")
+  refreshToken String   @map("refresh_token")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz()
+  scope        String
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("spotify_auth")
+}
+
+model TrackMetadata {
+  id         String     @id @default(uuid()) @db.Uuid
+  spotifyId  String     @unique @map("spotify_id")
+  title      String
+  artist     String
+  album      String
+  durationMs Int        @map("duration_ms")
+  artworkUrl String?    @map("artwork_url")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  scrobbles  Scrobble[]
+
+  @@map("track_metadata")
+}
+
+model Scrobble {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  trackId   String        @map("track_id") @db.Uuid
+  playedAt  DateTime      @map("played_at") @db.Timestamptz()
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track     TrackMetadata @relation(fields: [trackId], references: [id])
+
+  @@index([userId])
+  @@index([trackId])
+  @@map("scrobbles")
+}
