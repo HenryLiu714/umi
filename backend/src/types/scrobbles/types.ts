@@ -1,4 +1,5 @@
 import type { Scrobble, TrackMetadata, SpotifyAuth } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export type { Scrobble, TrackMetadata, SpotifyAuth };
 
@@ -16,6 +17,10 @@ export type CreateTrackMetadata = {
   durationMs: number;
   artworkUrl?: string;
 };
+
+export type ScrobbleWithTrack = Prisma.ScrobbleGetPayload<{
+  include: {track: true};
+}>
 
 export type UpsertTrackMetadata = CreateTrackMetadata;
 
